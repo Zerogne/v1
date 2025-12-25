@@ -221,7 +221,7 @@ export default function AdminAiRunsPage() {
                   {/* Error */}
                   {selectedRun.error && (
                     <div>
-                      <h3 className="font-semibold mb-2 text-red-400">Error</h3>
+                      <h3 className="font-semibold mb-2 text-red-400">Aldaa</h3>
                       <Card className="p-3 bg-red-500/10 border-red-500/20">
                         <pre className="text-sm whitespace-pre-wrap">{selectedRun.error}</pre>
                       </Card>
