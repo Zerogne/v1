@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { hashPassword } from "@/lib/password"
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,16 +36,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For now, store password as plain text (NOT SECURE - should use bcrypt in production)
-    // TODO: Implement proper password hashing with bcrypt
-    const hashedPassword = password // In production: await bcrypt.hash(password, 10)
+    // Hash password securely
+    const hashedPassword = await hashPassword(password)
 
     // Create user with normalized email
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
         name: name.trim(),
-        password: hashedPassword.trim(),
+        password: hashedPassword,
       },
       select: {
         id: true,

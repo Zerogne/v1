@@ -1,5 +1,5 @@
 import { prisma } from "./prisma"
-import { LedgerOwnerType, LedgerEntryType, PlanTier } from "./generated/prisma"
+import { LedgerOwnerType, LedgerEntryType, PlanTier } from "./generated/prisma/enums"
 import { getEffectivePlanForUser, getPlanLimits } from "./entitlements"
 
 /**

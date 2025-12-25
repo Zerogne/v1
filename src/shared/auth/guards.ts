@@ -6,14 +6,11 @@ import { Errors, AppError } from "@/src/shared/lib/errors"
 /**
  * Require authenticated user
  * Throws AppError if user not found
+ * 
+ * Note: getUserId already throws Errors.unauthorized, so this is a convenience wrapper
  */
 export async function requireUser(request: NextRequest): Promise<string> {
-  try {
-    const userId = await getUserId(request)
-    return userId
-  } catch (error) {
-    throw Errors.unauthorized("Authentication required")
-  }
+  return await getUserId(request) // getUserId already throws if not authenticated
 }
 
 /**

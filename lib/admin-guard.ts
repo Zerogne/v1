@@ -53,7 +53,7 @@ export async function logAdminAction(
         action,
         targetType: targetType || null,
         targetId: targetId || null,
-        metaJson: meta || null,
+        metaJson: meta ? (meta as any) : null,
       },
     })
   } catch (error) {

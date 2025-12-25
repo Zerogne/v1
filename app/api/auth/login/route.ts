@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { verifyPassword, isBcryptHash } from "@/lib/password"
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,21 +31,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user) {
-      console.error("User not found for email:", normalizedEmail)
+      // Don't reveal if user exists or not (security best practice)
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       )
     }
 
-    // For now, compare passwords directly (NOT SECURE - should use bcrypt in production)
-    // TODO: Implement proper password verification with bcrypt
-    // Trim both passwords to handle whitespace issues
-    const storedPassword = (user.password || "").trim()
-    const providedPassword = (password || "").trim()
+    // Verify password - handle both bcrypt hashes and plaintext (for migration)
+    let passwordValid = false
+    if (isBcryptHash(user.password)) {
+      // Password is hashed, use bcrypt comparison
+      passwordValid = await verifyPassword(password, user.password)
+    } else {
+      // Legacy plaintext password (for migration) - compare directly but log warning
+      console.warn(`User ${user.email} has plaintext password - should be migrated to bcrypt`)
+      const storedPassword = (user.password || "").trim()
+      const providedPassword = (password || "").trim()
+      passwordValid = storedPassword === providedPassword
+    }
     
-    if (storedPassword !== providedPassword) {
-      console.error("Password mismatch for user:", user.email, "Stored length:", storedPassword.length, "Provided length:", providedPassword.length)
+    if (!passwordValid) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -62,12 +69,13 @@ export async function POST(request: NextRequest) {
       message: "Logged in successfully",
     })
 
-    // Set cookie that server components can read
+    // Set secure cookie that server components can read
     response.cookies.set("userEmail", user.email, {
-      httpOnly: false, // Allow client-side access too
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      httpOnly: true, // Prevent XSS attacks - cookies not accessible via JavaScript
+      secure: process.env.NODE_ENV === "production", // HTTPS only in production
+      sameSite: "lax", // CSRF protection
       maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/", // Available site-wide
     })
 
     return response
