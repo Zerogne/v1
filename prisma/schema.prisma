@@ -1,0 +1,340 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum PlanTier {
+  FREE
+  PRO
+  TEAM
+}
+
+enum LedgerEntryType {
+  MONTHLY_GRANT
+  TOPUP
+  SPEND
+  ADJUSTMENT
+}
+
+enum LedgerOwnerType {
+  USER
+  WORKSPACE
+}
+
+enum SupabaseBackendStatus {
+  PROVISIONING
+  READY
+  ERROR
+}
+
+enum WorkspaceMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String   // Hashed password
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects            Project[]
+  chatSessions        ChatSession[]
+  aiRuns              AiRun[]
+  managedSupabaseProjects ManagedSupabaseProject[]
+  workspaceMembers    WorkspaceMember[]
+  ownedWorkspaces     Workspace[]
+  userAiUsage         AiUsageEvent[]
+  adminAuditLogs      AdminAuditLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files       ProjectFile[]
+  snapshots            Snapshot[]
+  chatSessions         ChatSession[]
+  aiRuns               AiRun[]
+  managedSupabaseProject ManagedSupabaseProject?
+
+  @@map("projects")
+}
+
+model ProjectFile {
+  id        String   @id @default(cuid())
+  projectId String
+  path      String
+  content   String   @default("")
+  language  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@map("project_files")
+}
+
+model Snapshot {
+  id        String   @id @default(cuid())
+  projectId String
+  label     String?
+  createdAt DateTime @default(now())
+
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshotFiles   SnapshotFile[]
+  chatSessions    ChatSession[]
+  aiRunsAsBase    AiRun[]       @relation("BaseSnapshot")
+
+  @@map("snapshots")
+}
+
+model SnapshotFile {
+  id         String   @id @default(cuid())
+  snapshotId String
+  path       String
+  content    String   @default("")
+  language   String?
+
+  snapshot Snapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@map("snapshot_files")
+}
+
+model ChatSession {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String
+  snapshotId String
+  title      String
+  createdAt  DateTime @default(now())
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshot Snapshot     @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+  aiRuns   AiRun[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  chatSessionId String
+  role          String   // "user" | "assistant" | "system"
+  content       String
+  createdAt     DateTime @default(now())
+
+  chatSession ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model AiRun {
+  id             String   @id @default(cuid())
+  userId         String
+  projectId      String
+  chatSessionId  String
+  baseSnapshotId String
+  provider       String   // "anthropic"
+  model          String
+  status         String   // "running" | "applied" | "failed"
+  prompt         String
+  responseText   String?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Observability metrics
+  inputTokens      Int?
+  outputTokens     Int?
+  cacheReadTokens  Int?
+  cacheWriteTokens Int?
+  toolIterations   Int     @default(0)
+  toolCallsCount   Int     @default(0)
+  patchFailures    Int     @default(0)
+  contextBytes     Int?
+  contextFilesCount Int?
+  selectedFilePath String?
+  durationMs       Int?
+  retries          Int     @default(0)
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chatSession     ChatSession       @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  toolInvocations AiToolInvocation[]
+  baseSnapshot    Snapshot          @relation("BaseSnapshot", fields: [baseSnapshotId], references: [id])
+
+  @@map("ai_runs")
+}
+
+model AiToolInvocation {
+  id        String   @id @default(cuid())
+  aiRunId   String
+  toolName  String
+  args      Json
+  result    Json?
+  success   Boolean?
+  durationMs Int?
+  createdAt DateTime @default(now())
+
+  aiRun AiRun @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+
+  @@map("ai_tool_invocations")
+}
+
+model ManagedSupabaseMigration {
+  id                      String   @id @default(cuid())
+  managedSupabaseProjectId String
+  name                    String   // Migration name/identifier
+  hash                    String   // Hash of SQL for deduplication
+  sql                     String?  // Optional: store SQL content
+  status                  String   @default("pending") // pending | applied | failed
+  appliedAt               DateTime?
+  error                   String?
+  createdAt               DateTime @default(now())
+
+  managedSupabaseProject ManagedSupabaseProject @relation(fields: [managedSupabaseProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([managedSupabaseProjectId, hash])
+  @@index([managedSupabaseProjectId, createdAt])
+  @@map("managed_supabase_migrations")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String   // User ID of workspace owner
+  seatCount Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner     User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members   WorkspaceMember[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String              @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceMemberRole @default(MEMBER)
+  createdAt   DateTime            @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model SubscriptionState {
+  id                 String   @id @default(cuid())
+  ownerType          LedgerOwnerType
+  ownerId            String   // User ID or Workspace ID (polymorphic - handled in app code)
+  planTier           PlanTier
+  status             String   @default("ACTIVE") // ACTIVE | CANCELED
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([ownerType, ownerId])
+  @@map("subscription_states")
+}
+
+model CreditLedgerEntry {
+  id              String          @id @default(cuid())
+  ownerType       LedgerOwnerType
+  ownerId         String          // User ID or Workspace ID (polymorphic - handled in app code)
+  type            LedgerEntryType
+  amountCredits   Float           // Positive for grants/topups, negative for spend
+  periodKey       String?         // YYYY-MM for monthly grants, null for topups/spend
+  ref             String?         // e.g., requestId for spend entries
+  createdAt       DateTime        @default(now())
+
+  @@index([ownerType, ownerId, createdAt])
+  @@index([ownerType, ownerId, periodKey])
+  @@map("credit_ledger_entries")
+}
+
+model AiUsageEvent {
+  id             String   @id @default(cuid())
+  requestId      String   @unique // Unique request identifier
+  userId         String
+  projectId      String?
+  workspaceId    String?
+  modelUsed      String
+  inputTokens    Int
+  outputTokens   Int
+  vendorCostUsd  Float
+  creditsCharged Float
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@map("ai_usage_events")
+}
+
+model ManagedSupabaseProject {
+  id                  String                @id @default(cuid())
+  projectId           String                @unique
+  ownerType           LedgerOwnerType       @default(USER)
+  ownerId             String                // User ID or Workspace ID
+  ownerUserId         String                // Keep for backward compatibility
+  supabaseRef         String                // Project reference ID from Supabase
+  projectUrl          String                // https://{ref}.supabase.co
+  publishableKey      String                // Client-safe anon key (can be exposed to client)
+  secretKeyEncrypted  String                // Encrypted service_role key (server-only)
+  dbPassEncrypted     String                // Encrypted database password (server-only)
+  status              SupabaseBackendStatus @default(PROVISIONING)
+  errorMessage        String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  project     Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User                       @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  migrations  ManagedSupabaseMigration[]
+
+  @@index([ownerType, ownerId])
+  @@map("managed_supabase_projects")
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  action      String   // e.g., "set_plan", "topup", "toggle_admin"
+  targetType  String?  // "USER", "WORKSPACE", "BACKEND", etc.
+  targetId    String?
+  metaJson    Json?    // Additional metadata
+  createdAt   DateTime @default(now())
+
+  adminUser User @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
+}
