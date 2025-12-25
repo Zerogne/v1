@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { createPostHandler } from "@/src/shared/http/route"
 import { requireAdmin, logAdminAction } from "@/lib/admin-guard"
 import { prisma } from "@/lib/prisma"
@@ -5,7 +6,7 @@ import { Errors } from "@/src/shared/lib/errors"
 import { SupabaseBackendStatus } from "@/lib/generated/prisma/enums"
 
 export const POST = createPostHandler(
-  {},
+  z.object({}),
   async ({ request, params }) => {
     const { userId: adminUserId } = await requireAdmin(request)
     const { id: backendId } = await params
