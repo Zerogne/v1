@@ -2,7 +2,7 @@ import { z } from "zod"
 import { createPostHandler } from "@/src/shared/http/route"
 import { requireAdmin, logAdminAction } from "@/lib/admin-guard"
 import { addTopup } from "@/lib/credits"
-import { LedgerOwnerType } from "@/lib/generated/prisma"
+import { LedgerOwnerType } from "@/lib/generated/prisma/enums"
 
 const requestSchema = z.object({
   ownerType: z.enum(["USER", "WORKSPACE"]),

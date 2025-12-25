@@ -2,7 +2,7 @@ import { createPostHandler } from "@/src/shared/http/route"
 import { requireAdmin, logAdminAction } from "@/lib/admin-guard"
 import { prisma } from "@/lib/prisma"
 import { Errors } from "@/src/shared/lib/errors"
-import { SupabaseBackendStatus } from "@/lib/generated/prisma"
+import { SupabaseBackendStatus } from "@/lib/generated/prisma/enums"
 
 export const POST = createPostHandler(
   {},

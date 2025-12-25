@@ -2,7 +2,7 @@ import { z } from "zod"
 import { createPostHandler } from "@/src/shared/http/route"
 import { requireAdmin, logAdminAction } from "@/lib/admin-guard"
 import { prisma } from "@/lib/prisma"
-import { LedgerOwnerType, LedgerEntryType } from "@/lib/generated/prisma"
+import { LedgerOwnerType, LedgerEntryType } from "@/lib/generated/prisma/enums"
 import { Errors } from "@/src/shared/lib/errors"
 
 const requestSchema = z.object({

@@ -3,7 +3,7 @@ import { createPostHandler } from "@/src/shared/http/route"
 import { requireAdmin, logAdminAction } from "@/lib/admin-guard"
 import { prisma } from "@/lib/prisma"
 import { Errors } from "@/src/shared/lib/errors"
-import { PlanTier, LedgerOwnerType } from "@/lib/generated/prisma"
+import { PlanTier, LedgerOwnerType } from "@/lib/generated/prisma/enums"
 
 const requestSchema = z.object({
   userId: z.string().optional(), // If not provided, uses current user
